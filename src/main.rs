@@ -1,6 +1,7 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 mod test;
+mod parser;
 mod program;
 use program::{ExprNode, ExprValue, Program};
 
