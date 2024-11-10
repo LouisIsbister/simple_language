@@ -1,0 +1,1 @@
+apply (func x => if x then 9 else x, T)
