@@ -15,8 +15,7 @@ mod test {
         let right = Box::new(Expr::Leaf(Value::Int(42)));
         let add = Expr::new_bin_op(left, right, program::add);
 
-        let res = Program::new(add).exec();
-        assert_eq!(match res {
+        assert_eq!(match Program::new(add).exec() {
             Value::Int(val) => val,
             _ => panic!("Didn't find a number!")
         }, 84)
@@ -39,17 +38,21 @@ mod test {
         let t = Box::new(Expr::Leaf(Value::Bool(true)));
         let f = Box::new(Expr::Leaf(Value::Bool(false)));
         
-        let a1 = Expr::new_bin_op(t.clone(), f, program::logic_and);
+        let a1 = Expr::new_bin_op(t.clone(), f.clone(), program::logic_and);
         let a2 = Expr::new_bin_op(t.clone(), t, program::logic_and);
+        let a3 = Expr::new_bin_op(f.clone(), f, program::logic_and);
 
-        assert_eq!(match Program::new(a1).exec() {
-            Value::Bool(val) => val,
-            _ => panic!("Didn't find a boolean!")
-        }, false);
-        assert_eq!(match Program::new(a2).exec() {
-            Value::Bool(val) => val,
-            _ => panic!("Didn't find a boolean!")
-        }, true)
+        let tests = vec![
+            (Program::new(a1).exec(), false), 
+            (Program::new(a2).exec(), true),
+            (Program::new(a3).exec(), false),
+        ];
+        for (value, expected) in tests {
+            assert_eq!(match value {
+                Value::Bool(val) => val,
+                _ => panic!("Didn't find a boolean!")
+            }, expected);
+        }
     }
 
     #[test]
