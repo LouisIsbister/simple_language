@@ -7,9 +7,9 @@ use std::{collections::HashMap, env::Vars, fmt::Debug};
 /// 
 /// examples
 /// ```
-/// let left = ExprNode::Leaf(ExprValue::Int(42));
-/// let right = ExprNode::Leaf(ExprValue::Int(42));
-/// let add = ExprNode::new_bin_op(Box::new(left), Box::new(right), add);
+/// let left = Expr::Leaf(Value::Int(42));
+/// let right = Expr::Leaf(Value::Int(42));
+/// let add = Expr::new_bin_op(Box::new(left), Box::new(right), add);
 /// 
 /// // create and execute the program 
 /// let prog = Program::new(add);
@@ -18,18 +18,18 @@ use std::{collections::HashMap, env::Vars, fmt::Debug};
 /// 
 #[derive(Debug)]
 pub struct Program {
-    root: ExprNode,
-    vars: HashMap<String, Option<ExprNode>>,
+    root: Expr,
+    vars: HashMap<String, Option<Expr>>,
 }
 
 impl Program {
-    pub fn new(root: ExprNode) -> Self {
+    pub fn new(root: Expr) -> Self {
         Self { root, vars: HashMap::new() }
     }
-    pub fn add_var(&mut self, id: String, value: Option<ExprNode>) {
-        self.vars.insert(id, value);
+    pub fn add_var(&mut self, id: String, val: Option<Expr>) {
+        self.vars.insert(id, val);
     }
-    pub fn exec(&self) -> ExprValue {
+    pub fn exec(&self) -> Value {
         self.root.execute()
     }
 }
@@ -38,12 +38,12 @@ impl Program {
 /// 
 /// examples
 /// ```
-/// let int_42 = ExprValue::Int(42);
-/// let bool_false = ExprValue::Bool(false));
-/// let str = ExprValue::Var("x".to_string());
+/// let int_42 = Value::Int(42);
+/// let bool_false = Value::Bool(false));
+/// let str = Value::Var("x".to_string());
 /// ```
 #[derive(Debug, Clone)]
-pub enum ExprValue {
+pub enum Value {
     Int(i64),
     Bool(bool),
     Var(String)
@@ -51,55 +51,38 @@ pub enum ExprValue {
 
 /// represents a node in the abstract syntax tree that gets built from a program
 #[derive(Debug, Clone)]
-pub enum ExprNode {
-    Leaf(ExprValue),
+pub enum Expr {
+    Leaf(Value),
     UnaryOp {
-        val: Box<ExprNode>,
-        op: fn(ExprValue) -> ExprValue,
+        val: Box<Expr>,
+        func: fn(Value) -> Value,
     },
     BinOp {
-        left: Box<ExprNode>,
-        right: Box<ExprNode>,
-        op: fn(ExprValue, ExprValue) -> ExprValue,
+        left: Box<Expr>,
+        right: Box<Expr>,
+        func: fn(Value, Value) -> Value,
     },
     Func {
-        param: Box<ExprNode>,
-        func: fn(&ExprNode) -> ExprValue,
+        param: Box<Expr>,
+        func: fn(&Expr) -> Value,
     }
 }
 
-impl ExprNode {
-    pub fn new_value(value: ExprValue) -> ExprNode {
-        ExprNode::Leaf(value)
+impl Expr {
+    pub fn new_unary_op(val: Box<Expr>, func: fn(Value) -> Value) -> Expr {
+        Expr::UnaryOp { val, func }
     }
 
-    pub fn new_unary_op(
-        val: Box<ExprNode>,
-        op: fn(ExprValue) -> ExprValue,
-    ) -> ExprNode {
-        ExprNode::UnaryOp { val, op }
+    pub fn new_bin_op(left: Box<Expr>, right: Box<Expr>, func: fn(Value, Value) -> Value) -> Expr {
+        Expr::BinOp { left, right, func }
     }
 
-    pub fn new_bin_op(
-        left: Box<ExprNode>,
-        right: Box<ExprNode>,
-        op: fn(ExprValue, ExprValue) -> ExprValue,
-    ) -> ExprNode {
-        ExprNode::BinOp { left, right, op }
-    }
-
-    pub fn execute(&self) -> ExprValue {
+    pub fn execute(&self) -> Value {
         match self {
-            ExprNode::Leaf(val) => val.clone(),
-            ExprNode::UnaryOp { val, op } => {
-                op(ExprNode::execute(val))
-            }
-            ExprNode::BinOp { left, right, op } => {
-                op(ExprNode::execute(left), ExprNode::execute(right))
-            }
-            ExprNode::Func { param, func } => {
-                func(param)
-            }
+            Expr::Leaf(val) => val.clone(),
+            Expr::UnaryOp { val, func } => func(val.execute()),
+            Expr::BinOp { left, right, func } => func(left.execute(), right.execute()),
+            Expr::Func { param, func } => func(param),
         }
     }
 }
@@ -108,61 +91,67 @@ impl ExprNode {
 ///  | e < e | e = e | e + e | e - e | e * e | e / e
 ///  | e & e | e | e | ! e | (e)
 
-pub fn add(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "+") }
-pub fn sub(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "-") }
-pub fn mul(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "*") }
-pub fn div(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "/") }
-pub fn bitwise_and(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "&") }
-pub fn bitwise_or(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "|") }
+pub fn add(left: Value, right: Value) -> Value { bin_eval(left, right, "+") }
+pub fn sub(left: Value, right: Value) -> Value { bin_eval(left, right, "-") }
+pub fn mul(left: Value, right: Value) -> Value { bin_eval(left, right, "*") }
+pub fn div(left: Value, right: Value) -> Value { bin_eval(left, right, "/") }
+pub fn bitwise_and(left: Value, right: Value) -> Value { bin_eval(left, right, "&") }
+pub fn bitwise_or(left: Value, right: Value) -> Value { bin_eval(left, right, "|") }
 
-pub fn lt(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "<") }
-pub fn le(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "<=") }
-pub fn gt(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, ">") }
-pub fn ge(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, ">=") }
-pub fn eq(left: ExprValue, right: ExprValue) -> ExprValue { bin_eval(left, right, "=") }
+pub fn lt(left: Value, right: Value) -> Value { bin_eval(left, right, "<") }
+pub fn le(left: Value, right: Value) -> Value { bin_eval(left, right, "<=") }
+pub fn gt(left: Value, right: Value) -> Value { bin_eval(left, right, ">") }
+pub fn ge(left: Value, right: Value) -> Value { bin_eval(left, right, ">=") }
+pub fn eq(left: Value, right: Value) -> Value { bin_eval(left, right, "==") }
 
-pub fn not(left: ExprValue) -> ExprValue { unary_logic_eval(left, "!") }
-pub fn logic_and(left: ExprValue, right: ExprValue) -> ExprValue { binary_logic_eval(left, right, "&&") }
-pub fn logic_or(left: ExprValue, right: ExprValue) -> ExprValue { binary_logic_eval(left, right, "||") }
+pub fn not(left: Value) -> Value { unary_logic_eval(left, "!") }
+pub fn logic_and(left: Value, right: Value) -> Value { binary_logic_eval(left, right, "&&") }
+pub fn logic_or(left: Value, right: Value) -> Value { binary_logic_eval(left, right, "||") }
 
-pub fn bin_eval(left: ExprValue, right: ExprValue, op: &str) -> ExprValue {
+/// Supported operators (eventually)
+///   Numeric: + - * / 
+///   Bitwise: & |
+///   Boolean (numeric): < <= > >= ==
+///   Boolean: ! && ||
+
+pub fn bin_eval(left: Value, right: Value, op: &str) -> Value {
     match (left, right) {
-        (ExprValue::Int(l), ExprValue::Int(r)) => match op {
-            "+" => ExprValue::Int(l + r),
-            "-" => ExprValue::Int(l - r),
-            "*" => ExprValue::Int(l * r),
+        (Value::Int(l), Value::Int(r)) => match op {
+            "+" => Value::Int(l + r),
+            "-" => Value::Int(l - r),
+            "*" => Value::Int(l * r),
             "/" => {
                 if r == 0 { panic!("Division by 0!"); }
-                ExprValue::Int(l / r)
+                Value::Int(l / r)
             },
-            "&" => ExprValue::Int(l & r),
-            "|" => ExprValue::Int(l | r),
-            "<" => ExprValue::Bool(l < r),
-            "<=" => ExprValue::Bool(l <= r),
-            ">" => ExprValue::Bool(l > r),
-            ">=" => ExprValue::Bool(l >= r),
-            "=" => ExprValue::Bool(l == r),
+            "&" => Value::Int(l & r),
+            "|" => Value::Int(l | r),
+            "<" => Value::Bool(l < r),
+            "<=" => Value::Bool(l <= r),
+            ">" => Value::Bool(l > r),
+            ">=" => Value::Bool(l >= r),
+            "==" => Value::Bool(l == r),
             _ => panic!("Unknown binary operator {}", op)
         },
         _ => panic!("Unsupported operand types for numerical binary opertors."),
     }
 }
 
-pub fn binary_logic_eval(left: ExprValue, right: ExprValue, op: &str) -> ExprValue {
+pub fn binary_logic_eval(left: Value, right: Value, op: &str) -> Value {
     match (left, right) {
-        (ExprValue::Bool(l), ExprValue::Bool(r)) => match op {
-            "&&" => ExprValue::Bool(l && r),
-            "||" => ExprValue::Bool(l || r),
+        (Value::Bool(l), Value::Bool(r)) => match op {
+            "&&" => Value::Bool(l && r),
+            "||" => Value::Bool(l || r),
             _ => panic!("Unknown unary operator {}", op)
         },
         _ => panic!("Unsupported operand types for unary opertors."),
     }
 }
 
-pub fn unary_logic_eval(left: ExprValue, op: &str) -> ExprValue {
+pub fn unary_logic_eval(left: Value, op: &str) -> Value {
     match left {
-        ExprValue::Bool(l) => match op {
-            "!" => ExprValue::Bool(!l),
+        Value::Bool(l) => match op {
+            "!" => Value::Bool(!l),
             _ => panic!("Unknown unary operator {}", op)
         },
         _ => panic!("Unsupported operand types for unary opertors."),
